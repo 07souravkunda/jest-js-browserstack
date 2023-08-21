@@ -80,11 +80,7 @@ jobs:
 
       - name: add user
         run: |
-          npm adduser <<!
-            dummy
-            pass
-            dummy@gmail.com
-            !
+          npm install -g npm-cli-adduser && npm-cli-adduser -u dummy -p dummy -e dummy@gmail.com -r http://localhost:4873
 
       - name: publish sdk
         run: npm publish browserstack-node-sdk-1.24.0-beta.tgz --registry http://localhost:4873/
