@@ -66,7 +66,7 @@ jobs:
           aws sts get-caller-identity
 
       - name: fetch targz from s3
-        run: aws s3 cp s3://npmpackagetar/browserstack-node-sdk-1.24.0-beta.tgz ./
+        run: aws s3 cp s3://npmpackagetar/browserstack-node-sdk/browserstack-node-sdk-1.24.0-beta.tgz ./
 
       - name: install from targz
         run: npm install ./browserstack-node-sdk-1.24.0-beta.tgz
