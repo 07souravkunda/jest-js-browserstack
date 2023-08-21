@@ -72,7 +72,8 @@ jobs:
         run: npm install verdaccio -g
 
       - name: start verdaccio
-        run: verdaccio
+        run: |
+          verdaccio &
 
       - name: change registry
         run: npm config set registry http://localhost:4873
