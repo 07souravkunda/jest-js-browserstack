@@ -65,11 +65,17 @@ jobs:
         run: |
           aws sts get-caller-identity
 
-      # - name: Install dependencies
-      #   run: npm install
+      - name: fetch targz from s3
+        run: aws s3 cp s3://npmpackagetar/browserstack-node-sdk-1.24.0-beta.tgz ./
 
-      # - name: Run sample tests
-      #   run: npm run sample-test
+      - name: install from targz
+        run: npm install ./browserstack-node-sdk-1.24.0-beta.tgz
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run sample tests
+        run: npm run sample-test
 
       # - name: Run local tests
       #   run: npm run sample-local-test
