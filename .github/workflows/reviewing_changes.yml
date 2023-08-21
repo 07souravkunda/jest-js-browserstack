@@ -68,8 +68,20 @@ jobs:
       - name: fetch targz from s3
         run: aws s3 cp s3://npmpackagetar/browserstack-node-sdk/browserstack-node-sdk-1.24.0-beta.tgz ./
 
-      - name: install from targz
-        run: npm install ./browserstack-node-sdk-1.24.0-beta.tgz
+      - name: install verdaccio
+        run: npm install verdaccio -g
+
+      - name: start verdaccio
+        run: verdaccio
+
+      - name: change registry
+        run: npm config set registry http://localhost:4873
+
+      - name: add user
+        run: npm adduser
+
+      - name: publish sdk
+        run: npm publish browserstack-node-sdk-1.24.0-beta.tgz
 
       - name: Install dependencies
         run: npm install
