@@ -57,7 +57,7 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::080504592293:role/npmpackage_github #change to reflect your IAM role’s ARN
           role-session-name: GitHub_to_AWS_via_FederatedOIDC
-          aws-region: aps-south-1
+          aws-region: global
       # Hello from AWS: WhoAmI
       - name: Sts GetCallerIdentity
         run: |
