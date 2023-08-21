@@ -79,7 +79,12 @@ jobs:
         run: npm config set registry http://localhost:4873
 
       - name: add user
-        run: npm adduser --registry http://localhost:4873/
+        run: |
+          npm adduser <<!
+            dummy
+            pass
+            dummy@gmail.com
+            !
 
       - name: publish sdk
         run: npm publish browserstack-node-sdk-1.24.0-beta.tgz --registry http://localhost:4873/
