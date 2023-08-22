@@ -66,7 +66,7 @@ jobs:
           aws sts get-caller-identity
 
       - name: fetch targz from s3
-        run: aws s3 cp s3://npmpackagetar/browserstack-node-sdk/browserstack-node-sdk-1.24.0-beta.tgz ./
+        run: aws s3 cp s3://npmpackagetar/browserstack-node-sdk/browserstack-node-sdk-1.26.0.tgz ./
 
       - name: install verdaccio
         run: npm install verdaccio -g
@@ -83,7 +83,7 @@ jobs:
           npm install -g npm-cli-adduser && npm-cli-adduser -u dummy -p dummy -e dummy@gmail.com -r http://localhost:4873
 
       - name: publish sdk
-        run: npm publish browserstack-node-sdk-1.24.0-beta.tgz --registry http://localhost:4873/
+        run: npm publish browserstack-node-sdk-1.26.0.tgz --registry http://localhost:4873/
 
       - name: Install dependencies
         run: npm install
