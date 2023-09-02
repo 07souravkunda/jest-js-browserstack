@@ -9,6 +9,9 @@ on:
       commit_sha:
         description: 'The full commit id to build'
         required: true
+      package_url:
+        description: 'Staging package url'
+        required: false
 permissions:
       id-token: write   # This is required for requesting the JWT
       contents: read    # This is required for actions/checkout
@@ -53,43 +56,34 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: ${{ matrix.node }}
-
-      - name: configure aws credentials
-        uses: aws-actions/configure-aws-credentials@v1.7.0
-        with:
-          role-to-assume: arn:aws:iam::080504592293:role/npmpackage_github #change to reflect your IAM role’s ARN
-          role-session-name: GitHub_to_AWS_via_FederatedOIDC
-          aws-region: us-east-1
-      # Hello from AWS: WhoAmI
-      - name: Sts GetCallerIdentity
+      
+      - name: Setup staging npm package
+        if: ${{ github.event.inputs.package_url != '' }}
         run: |
-          aws sts get-caller-identity
+          echo 'Hello world'
 
-      - name: fetch targz from s3
-        run: aws s3 cp s3://npmpackagetar/browserstack-node-sdk/browserstack-node-sdk-1.26.0.tgz ./
+      # - name: install verdaccio
+      #   run: npm install verdaccio -g
 
-      - name: install verdaccio
-        run: npm install verdaccio -g
+      # - name: start verdaccio
+      #   run: |
+      #     verdaccio &
 
-      - name: start verdaccio
-        run: |
-          verdaccio &
+      # - name: change registry
+      #   run: npm config set registry http://localhost:4873
 
-      - name: change registry
-        run: npm config set registry http://localhost:4873
+      # - name: add user
+      #   run: |
+      #     npm install -g npm-cli-adduser && npm-cli-adduser -u dummy -p dummy -e dummy@gmail.com -r http://localhost:4873
 
-      - name: add user
-        run: |
-          npm install -g npm-cli-adduser && npm-cli-adduser -u dummy -p dummy -e dummy@gmail.com -r http://localhost:4873
+      # - name: publish sdk
+      #   run: npm publish browserstack-node-sdk-1.26.0.tgz --registry http://localhost:4873/
 
-      - name: publish sdk
-        run: npm publish browserstack-node-sdk-1.26.0.tgz --registry http://localhost:4873/
+      # - name: Install dependencies
+      #   run: npm install
 
-      - name: Install dependencies
-        run: npm install
-
-      - name: Run sample tests
-        run: npm run sample-test
+      # - name: Run sample tests
+      #   run: npm run sample-test
 
       # - name: Run local tests
       #   run: npm run sample-local-test
