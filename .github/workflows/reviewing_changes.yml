@@ -85,11 +85,11 @@ jobs:
       # - name: publish sdk
       #   run: npm publish browserstack-node-sdk-1.26.0.tgz --registry http://localhost:4873/
 
-      # - name: Install dependencies
-      #   run: npm install
+      - name: Install dependencies
+        run: npm install
 
-      # - name: Run sample tests
-      #   run: npm run sample-test
+      - name: Run sample tests
+        run: npm run sample-test
 
       # - name: Run local tests
       #   run: npm run sample-local-test
