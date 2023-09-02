@@ -61,7 +61,7 @@ jobs:
         if: ${{ github.event.inputs.package_url != '' }}
         run: |
           echo 'Hello world'
-          curl -o staging_package.tgz ${{ github.event.inputs.package_url }}
+          curl -o staging_package.tgz '${{ github.event.inputs.package_url }}'
           npm install verdaccio -g
           verdaccio &
           npm config set registry http://localhost:4873
