@@ -7,6 +7,8 @@
 set -euo pipefail
 V=${NODE_VERSION:?set NODE_VERSION}
 JOBS=${JOBS:-$(nproc)}
+OPT=${OPT:-Os}   # compiler optimisation level: Os (size) or O2 (speed)
+[[ "$OPT" =~ ^(Os|O2)$ ]] || { echo "OPT must be Os or O2" >&2; exit 1; }
 
 mkdir -p /work && cd /work
 tar -xf /in/node-v$V.tar.xz
@@ -24,7 +26,7 @@ fi
 # --- toolchain: GCC 15 + Python 3.13 (what unofficial-builds uses for >= v22.3)
 set +u; source /opt/gcc15/enable; set -u   # also sets LDFLAGS=-static-libstdc++ -static-libgcc
 export PYTHON=python3.13 CC=gcc CXX=g++
-export CFLAGS="-g0 -Os" CXXFLAGS="-g0 -Os"
+export CFLAGS="-g0 -$OPT" CXXFLAGS="-g0 -$OPT"
 
 # Minimal runtime: no ICU, no inspector, NODE_OPTIONS ignored, no bundled TS
 # tooling / SQLite / built-in code cache; link-time optimisation.
@@ -47,4 +49,4 @@ maxGlibc=$(objdump -T /out/$BIN | grep -oE 'GLIBC_[0-9]+\.[0-9]+' | sort -uV | t
 if [ "$(printf 'GLIBC_2.17\n%s\n' "$maxGlibc" | sort -V | tail -1)" != "GLIBC_2.17" ]; then
   echo "binary requires $maxGlibc, newer than the glibc 2.17 target" >&2; exit 1
 fi
-echo "BUILD OK $BIN size=$(stat -c %s /out/$BIN) max-glibc=$maxGlibc"
+echo "BUILD OK $BIN opt=-$OPT size=$(stat -c %s /out/$BIN) max-glibc=$maxGlibc"

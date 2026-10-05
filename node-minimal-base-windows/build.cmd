@@ -9,9 +9,11 @@ rem ignored, no bundled TS tooling / SQLite / built-in code cache.
 rem (without-intl is a vcbuild argument; the rest go to configure.)
 set config_flags=--without-node-options --without-inspector --without-amaro --without-sqlite --without-node-code-cache
 
-rem Optimise for size (MSVC's -Os). _CL_ is appended after the project's own
-rem flags, so /O1 overrides the default /O2. `release` already enables LTCG.
-set _CL_=/O1
+rem OPT=O1: optimise for size (MSVC's -Os). _CL_ is appended after the project's
+rem own flags, so /O1 overrides its /Ox. OPT=O2: keep the project's /Ox (speed).
+rem `release` already enables LTCG.
+if not defined OPT set OPT=O1
+if /i "%OPT%"=="O1" set _CL_=/O1
 
 call vcbuild.bat release x86 vs2022 without-intl no-cctest nonpm nocorepack
 if errorlevel 1 exit /b 1
