@@ -1,0 +1,106 @@
+name: node-minimal-base-alpine
+
+# Builds a minimal, fully static Node.js for linux-x64 musl (Alpine) in an alpine
+# container on an x64 runner, then checks it runs on old and new Alpine, smoke-tests it
+# as a single executable (SEA) inside Alpine and benchmarks it against the unofficial
+# musl build of the same Node.js version. See node-minimal-base-alpine/README.md.
+on:
+  push:
+    branches: [node-minimal-base]
+    paths:
+      - 'node-minimal-base-alpine/**'
+      - '.github/workflows/node-minimal-base-alpine.yml'
+  workflow_dispatch:
+    inputs:
+      node_version:
+        description: 'Node.js version (no leading v)'
+        default: '22.23.3'
+      opt:
+        description: 'Optimisation level: Os (size) or O2 (speed)'
+        default: 'Os'
+      build_image:
+        description: 'Alpine image to build in'
+        default: 'alpine:3.17'
+      runs:
+        description: 'Benchmark runs per build'
+        default: '5'
+
+permissions:
+  contents: read
+
+jobs:
+  linux-x64-musl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      NODE_VERSION: ${{ inputs.node_version || '22.23.3' }}
+      OPT: ${{ inputs.opt || 'Os' }}
+      BUILD_IMAGE: ${{ inputs.build_image || 'alpine:3.17' }}
+      RUNS: ${{ inputs.runs || '5' }}
+    steps:
+      - name: Validate inputs
+        run: |
+          [[ "$NODE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$OPT" =~ ^(Os|O2)$ && "$RUNS" =~ ^[0-9]+$ \
+             && "$BUILD_IMAGE" =~ ^alpine:[0-9]+\.[0-9]+$ ]] || { echo "invalid input" >&2; exit 1; }
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Fetch and verify Node.js source
+        run: |
+          mkdir -p in out
+          cd in
+          curl -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}.tar.xz"
+          curl -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/SHASUMS256.txt"
+          grep " node-v${NODE_VERSION}.tar.xz\$" SHASUMS256.txt | sha256sum -c -
+
+      - name: Build minimal Node.js (fully static musl)
+        run: |
+          docker run --rm -e NODE_VERSION -e OPT -e JOBS="$(nproc)" \
+            -v "$PWD/in:/in:ro" -v "$PWD/out:/out" \
+            -v "$PWD/node-minimal-base-alpine/build-in-container.sh:/build.sh:ro" \
+            "$BUILD_IMAGE" sh /build.sh
+
+      - name: Runs on old and new Alpine, and on the glibc host
+        run: |
+          BIN="node-v${NODE_VERSION}-minimal-linux-x64-musl"
+          for img in alpine:3.8 alpine:latest; do
+            docker run --rm -v "$PWD/out:/out:ro" "$img" sh -c \
+              "echo \"\$(cat /etc/alpine-release):\"; /out/$BIN -p 'process.version + \" \" + process.arch + \" sea=\" + !!process.getBuiltinModule(\"node:sea\")'"
+          done
+          echo "ubuntu host:"; "out/$BIN" -p "process.version + ' ' + process.arch"
+          echo "MINIMAL=/out/$BIN" >> "$GITHUB_ENV"
+
+      - name: Fetch reference (unofficial linux-x64-musl Node.js)
+        run: |
+          mkdir -p ref && cd ref
+          U="https://unofficial-builds.nodejs.org/download/release/v${NODE_VERSION}"
+          curl -fsSLO "$U/node-v${NODE_VERSION}-linux-x64-musl.tar.xz"
+          curl -fsSL "$U/SHASUMS256.txt" | grep " node-v${NODE_VERSION}-linux-x64-musl.tar.xz\$" | sha256sum -c -
+          tar -xJf "node-v${NODE_VERSION}-linux-x64-musl.tar.xz" --strip-components 2 "node-v${NODE_VERSION}-linux-x64-musl/bin/node"
+
+      - name: SEA smoke test and benchmark (inside Alpine)
+        run: |
+          # The reference musl build is dynamically linked: it needs libstdc++ + libgcc.
+          docker run --rm -e RUNS -e MINIMAL -v "$PWD/out:/out" -v "$PWD:/w" -w /w alpine:latest sh -c '
+            set -e
+            apk add --no-cache bash nodejs npm libstdc++ libgcc > /dev/null
+            bash perf/sea-smoke.sh "$MINIMAL" "$MINIMAL"
+            node perf/run-bench.js --runs "$RUNS" --json "out/bench-linux-x64-musl-'"$OPT"'.json" \
+              official=/w/ref/node "minimal=$MINIMAL"
+          '
+        env:
+          MINIMAL: ${{ env.MINIMAL }}
+
+      - name: Checksums and size
+        run: |
+          cd out
+          gzip -9 -k "node-v${NODE_VERSION}-minimal-linux-x64-musl"
+          sha256sum node-v* > SHA256SUMS
+          cat SHA256SUMS
+          ls -l
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: node-v${{ env.NODE_VERSION }}-minimal-linux-x64-musl-${{ env.OPT }}
+          path: out/
+          retention-days: 30
