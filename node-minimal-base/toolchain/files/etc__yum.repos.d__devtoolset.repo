@@ -2,5 +2,5 @@
 # devtoolset-12 bootstraps the GCC that compiles published binaries.
 [devtoolset-12]
 name=Devtoolset 12
-baseurl=https://buildlogs.centos.org/c7-devtoolset-12.x86_64/
+baseurl=https://buildlogs.centos.org/c7-devtoolset-12.$basearch/
 gpgcheck=0

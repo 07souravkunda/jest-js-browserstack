@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds a minimal, size-optimised Node.js for linux-x64 that runs on glibc >= 2.17
+# Builds a minimal Node.js for linux (x64 or arm64, from uname -m) that runs on glibc >= 2.17
 # (CentOS/RHEL 7, Amazon Linux 2 and newer). Runs inside the toolchain image.
 # Mounts: /in/node-v$NODE_VERSION.tar.xz (source, read-only), /out (result).
 # The glibc-2.17 patches and checks come from nodejs/unofficial-builds
@@ -9,6 +9,8 @@ V=${NODE_VERSION:?set NODE_VERSION}
 JOBS=${JOBS:-$(nproc)}
 OPT=${OPT:-Os}   # compiler optimisation level: Os (size) or O2 (speed)
 [[ "$OPT" =~ ^(Os|O2)$ ]] || { echo "OPT must be Os or O2" >&2; exit 1; }
+
+case "$(uname -m)" in x86_64) ARCH=x64 ;; aarch64) ARCH=arm64 ;; *) echo "unsupported arch $(uname -m)" >&2; exit 1 ;; esac
 
 mkdir -p /work && cd /work
 tar -xf /in/node-v$V.tar.xz
@@ -36,7 +38,7 @@ echo "make start $(date -u)"
 make -j"$JOBS"
 echo "make done $(date -u)"
 
-BIN=node-v$V-minimal-linux-x64-glibc217
+BIN=node-v$V-minimal-linux-$ARCH-glibc217
 cp out/Release/node /out/$BIN
 strip /out/$BIN
 
