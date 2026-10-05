@@ -3,6 +3,7 @@ name: node-minimal-base-linux-arm64
 # Builds a minimal Node.js for linux-arm64 / glibc >= 2.17 natively on an arm64 runner
 # (same recipe as node-minimal-base.yml: CentOS 7 aarch64 + GCC 15), then smoke-tests it
 # as a single executable and benchmarks it against the official arm64 Node.js.
+# A push that changes only this file runs it with the defaults (opt O2).
 on:
   push:
     branches: [node-minimal-base]
