@@ -1,0 +1,116 @@
+name: node-minimal-base-bench
+
+# Benchmarks the minimal Node.js bases against the official Node.js build of the same
+# version on the same runner, and smoke-tests them as single executables (SEA).
+# Takes the bases from earlier node-minimal-base(-windows) runs by run ID.
+on:
+  push:
+    branches: [node-minimal-base]
+    paths:
+      - 'perf/**'
+      - '.github/workflows/node-minimal-base-bench.yml'
+  workflow_dispatch:
+    inputs:
+      linux_run_id:
+        description: 'node-minimal-base run ID (linux-x64 base)'
+        default: '37268821260'
+      windows_run_id:
+        description: 'node-minimal-base-windows run ID (win-x86 base)'
+        default: '37268970082'
+      node_version:
+        description: 'Node.js version of the bases (no leading v)'
+        default: '22.23.3'
+      runs:
+        description: 'Benchmark runs per build'
+        default: '5'
+
+permissions:
+  contents: read
+  actions: read   # download artifacts from the base-build runs
+
+env:
+  NODE_VERSION: ${{ inputs.node_version || '22.23.3' }}
+  RUNS: ${{ inputs.runs || '5' }}
+  LINUX_RUN_ID: ${{ inputs.linux_run_id || '37268821260' }}
+  WINDOWS_RUN_ID: ${{ inputs.windows_run_id || '37268970082' }}
+
+jobs:
+  linux-x64:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Validate inputs
+        run: |
+          [[ "$NODE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$RUNS" =~ ^[0-9]+$ && "$LINUX_RUN_ID" =~ ^[0-9]+$ ]] || { echo "invalid input" >&2; exit 1; }
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: node-v${{ env.NODE_VERSION }}-minimal-linux-x64-glibc217
+          run-id: ${{ env.LINUX_RUN_ID }}
+          github-token: ${{ github.token }}
+          path: base
+
+      - name: Verify base
+        run: |
+          cd base && sha256sum -c SHA256SUMS
+          chmod +x "node-v${NODE_VERSION}-minimal-linux-x64-glibc217"
+          echo "MINIMAL=$PWD/node-v${NODE_VERSION}-minimal-linux-x64-glibc217" >> "$GITHUB_ENV"
+
+      - name: SEA smoke test
+        run: bash perf/sea-smoke.sh "$MINIMAL" "$(command -v node)"
+
+      - name: Benchmark (official vs minimal)
+        run: node perf/run-bench.js --runs "$RUNS" --json bench-linux-x64.json "official=$(command -v node)" "minimal=$MINIMAL"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: bench-linux-x64
+          path: bench-linux-x64.json
+
+  win-x86:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Validate inputs
+        run: |
+          [[ "$NODE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$RUNS" =~ ^[0-9]+$ && "$WINDOWS_RUN_ID" =~ ^[0-9]+$ ]] || { echo "invalid input" >&2; exit 1; }
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Official 32-bit Node.js, so both builds run under WoW64.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          architecture: x86
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: node-v${{ env.NODE_VERSION }}-minimal-win-x86
+          run-id: ${{ env.WINDOWS_RUN_ID }}
+          github-token: ${{ github.token }}
+          path: base
+
+      - name: Verify base
+        run: |
+          cd base && sha256sum -c SHA256SUMS
+          echo "MINIMAL=$(cygpath -w "$PWD/node-v${NODE_VERSION}-minimal-win-x86.exe")" >> "$GITHUB_ENV"
+
+      - name: SEA smoke test
+        run: bash perf/sea-smoke.sh "$MINIMAL" "$(command -v node)"
+
+      - name: Benchmark (official vs minimal)
+        run: node perf/run-bench.js --runs "$RUNS" --json bench-win-x86.json "official=$(cygpath -w "$(command -v node)")" "minimal=$MINIMAL"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: bench-win-x86
+          path: bench-win-x86.json
