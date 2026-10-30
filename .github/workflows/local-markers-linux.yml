@@ -1,0 +1,79 @@
+name: local-markers-linux
+
+# Runs local-repro/markers.mjs (time to each startup marker, output redirected to a file) on linux-x64 for two BrowserStackLocal builds ("new" and "old"),
+# with both flag styles (--local-identifier/--force and -localIdentifier/-force), with and
+# without netstat installed. Binaries come from short-lived presigned URLs and the access key
+# from repo secrets; nothing is uploaded as an artifact.
+# Secrets: NEW_ZIP_URL, OLD_ZIP_URL, BSL_KEY. Optional repo variable BSL_BS_HOST.
+on:
+  push:
+    branches: [node-minimal-base]
+    paths:
+      - 'local-repro/markers.mjs'
+      - '.github/workflows/local-markers-linux.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repro:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 1   # same key on every runner: never run two tunnels sets at once
+      matrix:
+        netstat: [present]
+    env:
+      BSL_KEY: ${{ secrets.BSL_KEY }}
+      BSL_BS_HOST: ${{ vars.BSL_BS_HOST }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+
+      - name: netstat ${{ matrix.netstat }}
+        run: |
+          if [ "${{ matrix.netstat }}" = present ]; then sudo apt-get install -y -qq net-tools > /dev/null
+          else for n in netstat ss; do p=$(command -v $n) && sudo mv "$p" "$p.off"; done; fi
+          command -v netstat || echo "netstat: not installed"
+          uname -a; ldd --version | head -1
+
+      - name: Fetch builds
+        env:
+          NEW_ZIP_URL: ${{ secrets.NEW_ZIP_URL }}
+          OLD_ZIP_URL: ${{ secrets.OLD_ZIP_URL }}
+        run: |
+          [ -n "$BSL_KEY" ] && [ -n "$NEW_ZIP_URL" ] && [ -n "$OLD_ZIP_URL" ] || { echo "missing secrets" >&2; exit 1; }
+          for v in new old; do
+            mkdir -p "$RUNNER_TEMP/$v"
+            url=$([ $v = new ] && echo "$NEW_ZIP_URL" || echo "$OLD_ZIP_URL")
+            url=$(printf '%s' "$url" | tr -d '[:space:]')
+            code=$(curl -sS -o "$RUNNER_TEMP/$v/b.zip" -w '%{http_code} %{content_type}' "$url")
+            echo "$v: HTTP $code, $(stat -c %s "$RUNNER_TEMP/$v/b.zip") bytes"
+            if ! unzip -tq "$RUNNER_TEMP/$v/b.zip" > /dev/null 2>&1; then
+              echo "$v: not a zip; S3 said:"; head -c 400 "$RUNNER_TEMP/$v/b.zip" | grep -o '<Code>[^<]*</Code>\|<Message>[^<]*</Message>\|<Region>[^<]*</Region>\|<Endpoint>[^<]*</Endpoint>' || true
+              exit 1
+            fi
+            unzip -oq "$RUNNER_TEMP/$v/b.zip" -d "$RUNNER_TEMP/$v"
+            sha256sum "$RUNNER_TEMP/$v/BrowserStackLocal"
+            "$RUNNER_TEMP/$v/BrowserStackLocal" --version
+          done
+          [ -z "$BSL_BS_HOST" ] && echo "BSL_BS_HOST unset: using the script default"
+          if [ "$BSL_BS_HOST" != prod ]; then curl -s -o /dev/null -w "bs-host reachability: HTTP %{http_code}\n" "https://${BSL_BS_HOST:-preprod-local-service.bsstag.com}/" || echo "bs-host unreachable"; fi
+
+      - name: markers, new build
+        if: always()
+        run: node local-repro/markers.mjs new "$RUNNER_TEMP/new/BrowserStackLocal"
+      - name: markers, old build
+        if: always()
+        run: node local-repro/markers.mjs old "$RUNNER_TEMP/old/BrowserStackLocal"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          pkill -TERM -f '[B]rowserStackLocal' || true
+          rm -rf "$RUNNER_TEMP/new" "$RUNNER_TEMP/old"

@@ -9,7 +9,7 @@ on:
   push:
     branches: [node-minimal-base]
     paths:
-      - 'local-repro/**'
+      - 'local-repro/repro.mjs'
       - '.github/workflows/local-repro-linux.yml'
   workflow_dispatch:
 
