@@ -10,6 +10,7 @@ import path from 'node:path';
 const [label, bin, archPrefix] = process.argv.slice(2);
 if (!label || !bin) { console.error('usage: node repro.mjs <label> <binary> [arch-prefix]'); process.exit(2); }
 // Key: BSL_KEY env. Host: BSL_BS_HOST (default preprod).
+// BSL_BS_HOST=prod -> no --bs-host (production); unset -> preprod.
 const env = { bsHost: process.env.BSL_BS_HOST || 'preprod-local-service.bsstag.com' };
 const KEY = process.env.BSL_KEY;
 if (!KEY) { console.error('set BSL_KEY'); process.exit(2); }
@@ -22,7 +23,7 @@ const pre = archPrefix ? archPrefix.split(' ') : [];
 const OLD = process.env.FLAGS === 'old';
 const ID = OLD ? '-localIdentifier' : '--local-identifier';
 const FORCE = OLD ? '-force' : '--force';
-const base = ['--key', KEY, '--bs-host', env.bsHost];
+const base = env.bsHost === 'prod' ? ['--key', KEY] : ['--key', KEY, '--bs-host', env.bsHost];
 const children = [];
 
 function run(name, args, { waitConnected = false, timeoutMs = 90000 } = {}) {

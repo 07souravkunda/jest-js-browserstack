@@ -63,7 +63,7 @@ jobs:
             "$RUNNER_TEMP/$v/BrowserStackLocal" --version
           done
           [ -z "$BSL_BS_HOST" ] && echo "BSL_BS_HOST unset: using the script default"
-          curl -s -o /dev/null -w "bs-host reachability: HTTP %{http_code}\n" "https://${BSL_BS_HOST:-preprod-local-service.bsstag.com}/" || echo "bs-host unreachable"
+          if [ "$BSL_BS_HOST" != prod ]; then curl -s -o /dev/null -w "bs-host reachability: HTTP %{http_code}\n" "https://${BSL_BS_HOST:-preprod-local-service.bsstag.com}/" || echo "bs-host unreachable"; fi
 
       - name: new build, double-dash flags
         if: always()
