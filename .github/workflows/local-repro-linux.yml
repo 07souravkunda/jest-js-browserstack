@@ -37,7 +37,8 @@ jobs:
 
       - name: netstat ${{ matrix.netstat }}
         run: |
-          if [ "${{ matrix.netstat }}" = present ]; then sudo apt-get install -y -qq net-tools > /dev/null; fi
+          if [ "${{ matrix.netstat }}" = present ]; then sudo apt-get install -y -qq net-tools > /dev/null
+          else for n in netstat ss; do p=$(command -v $n) && sudo mv "$p" "$p.off"; done; fi
           command -v netstat || echo "netstat: not installed"
           uname -a; ldd --version | head -1
 
@@ -50,7 +51,13 @@ jobs:
           for v in new old; do
             mkdir -p "$RUNNER_TEMP/$v"
             url=$([ $v = new ] && echo "$NEW_ZIP_URL" || echo "$OLD_ZIP_URL")
-            curl -fsS -o "$RUNNER_TEMP/$v/b.zip" "$url"
+            url=$(printf '%s' "$url" | tr -d '[:space:]')
+            code=$(curl -sS -o "$RUNNER_TEMP/$v/b.zip" -w '%{http_code} %{content_type}' "$url")
+            echo "$v: HTTP $code, $(stat -c %s "$RUNNER_TEMP/$v/b.zip") bytes"
+            if ! unzip -tq "$RUNNER_TEMP/$v/b.zip" > /dev/null 2>&1; then
+              echo "$v: not a zip; S3 said:"; head -c 400 "$RUNNER_TEMP/$v/b.zip" | grep -o '<Code>[^<]*</Code>\|<Message>[^<]*</Message>\|<Region>[^<]*</Region>\|<Endpoint>[^<]*</Endpoint>' || true
+              exit 1
+            fi
             unzip -oq "$RUNNER_TEMP/$v/b.zip" -d "$RUNNER_TEMP/$v"
             sha256sum "$RUNNER_TEMP/$v/BrowserStackLocal"
             "$RUNNER_TEMP/$v/BrowserStackLocal" --version
