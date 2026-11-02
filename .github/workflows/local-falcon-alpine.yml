@@ -1,0 +1,70 @@
+name: local-falcon-alpine
+
+# Runs local-repro/falcon_check.sh inside an Alpine container on linux-x64 for two
+# BrowserStackLocal Alpine builds ("new" and "old"): which address the Falcon console
+# (port 45454) listens on, and the falcon_apis.feature calls via localhost, 127.0.0.1 and [::1].
+# Binaries come from short-lived presigned URLs and the access key from repo secrets;
+# nothing is uploaded as an artifact.
+# Secrets: ALPINE_NEW_ZIP_URL, ALPINE_OLD_ZIP_URL, BSL_KEY.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  falcon:
+    runs-on: ubuntu-latest
+    container: alpine:3.20
+    timeout-minutes: 30
+    env:
+      BSL_KEY: ${{ secrets.BSL_KEY }}
+    steps:
+      - name: Tools
+        run: |
+          apk add --no-cache bash curl unzip jq git > /dev/null
+          cat /etc/alpine-release; uname -m
+          echo "--- /etc/hosts"; cat /etc/hosts
+          echo "--- getent hosts localhost"; getent hosts localhost || true
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Fetch builds
+        shell: bash
+        env:
+          NEW_ZIP_URL: ${{ secrets.ALPINE_NEW_ZIP_URL }}
+          OLD_ZIP_URL: ${{ secrets.ALPINE_OLD_ZIP_URL }}
+        run: |
+          [ -n "$BSL_KEY" ] && [ -n "$NEW_ZIP_URL" ] && [ -n "$OLD_ZIP_URL" ] || { echo "missing secrets" >&2; exit 1; }
+          for v in new old; do
+            mkdir -p "$RUNNER_TEMP/$v"
+            url=$([ $v = new ] && echo "$NEW_ZIP_URL" || echo "$OLD_ZIP_URL")
+            url=$(printf '%s' "$url" | tr -d '[:space:]')
+            code=$(curl -sS -o "$RUNNER_TEMP/$v/b.zip" -w '%{http_code}' "$url")
+            echo "$v: HTTP $code, $(stat -c %s "$RUNNER_TEMP/$v/b.zip") bytes"
+            unzip -tq "$RUNNER_TEMP/$v/b.zip" > /dev/null 2>&1 || { echo "$v: not a zip"; head -c 300 "$RUNNER_TEMP/$v/b.zip" | grep -o '<Code>[^<]*</Code>' || true; exit 1; }
+            unzip -oq "$RUNNER_TEMP/$v/b.zip" -d "$RUNNER_TEMP/$v"
+            sha256sum "$RUNNER_TEMP/$v/BrowserStackLocal"
+            "$RUNNER_TEMP/$v/BrowserStackLocal" --version
+          done
+
+      - name: new build (Falcon)
+        if: always()
+        shell: bash
+        run: bash local-repro/falcon_check.sh new "$RUNNER_TEMP/new/BrowserStackLocal" 3
+      - name: old build (Falcon)
+        if: always()
+        shell: bash
+        run: bash local-repro/falcon_check.sh old "$RUNNER_TEMP/old/BrowserStackLocal" 3
+
+      - name: Binary logs (key redacted)
+        if: always()
+        shell: bash
+        run: |
+          for f in local-repro/out-falcon-*/run*.log; do echo "::group::$f"; tail -n 30 "$f" | sed -E 's/[A-Za-z0-9]{20}/<redacted>/g'; echo "::endgroup::"; done
+
+      - name: Cleanup
+        if: always()
+        run: |
+          pkill -TERM -f '[B]rowserStackLocal' || true
+          rm -rf "$RUNNER_TEMP/new" "$RUNNER_TEMP/old"
