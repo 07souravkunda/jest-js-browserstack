@@ -7,6 +7,11 @@ name: local-falcon-alpine
 # nothing is uploaded as an artifact.
 # Secrets: ALPINE_NEW_ZIP_URL, ALPINE_OLD_ZIP_URL, BSL_KEY.
 on:
+  push:
+    branches: [node-minimal-base]
+    paths:
+      - 'local-repro/falcon_check.sh'
+      - '.github/workflows/local-falcon-alpine.yml'
   workflow_dispatch:
 
 permissions:
